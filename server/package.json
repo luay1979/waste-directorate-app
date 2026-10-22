@@ -1,0 +1,19 @@
+{
+  "name": "directorate-server",
+  "version": "1.0.0",
+  "private": true,
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node index.js",
+    "create-user": "node scripts/create-user.js",
+    "seed:demo": "node scripts/seed-demo.js",
+    "seed:demo:remove": "node scripts/seed-demo.js --remove",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

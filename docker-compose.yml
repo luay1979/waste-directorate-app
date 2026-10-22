@@ -1,0 +1,15 @@
+# تشغيل الخادم على سيرفر المديرية:  docker compose up -d --build
+services:
+  directorate:
+    build: { context: ., dockerfile: server/Dockerfile }
+    restart: unless-stopped
+    ports: ["3000:3000"]
+    environment:
+      - ADMIN_USERNAME=director
+      # - ADMIN_PASSWORD=ضع_كلمة_مرور_مؤقتة_قوية   (وإلا تُولَّد وتظهر في السجل: docker compose logs)
+      # - ALLOWED_ORIGINS=https://your-domain.example
+      # - TRUST_PROXY=1        (إذا كان خلف nginx/Caddy)
+    volumes:
+      - directorate-data:/data
+volumes:
+  directorate-data:

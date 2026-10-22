@@ -1,0 +1,6 @@
+{
+  "appId": "sy.gov.wastedirectorate",
+  "appName": "مديرية النظافة",
+  "webDir": "www",
+  "server": { "androidScheme": "https" }
+}

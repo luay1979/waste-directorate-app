@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة إدارة ومتابعة مديرية النظافة | Waste Directorate Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet JS & CSS for GIS Interactive Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gov: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        emeraldGov: {
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857'
+                        }
+                    },
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f8fafc; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .leaflet-container { z-index: 10 !important; }
+    </style>
+    <script src="config.js"></script>
+</head>
+<body class="text-slate-800 antialiased custom-scrollbar">
+
+    
+    <!-- LOGIN -->
+    <div id="loginScreen" class="fixed inset-0 z-[100] bg-gov-900 flex items-center justify-center p-4">
+        <form onsubmit="doLogin(event)" class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <div class="text-center space-y-1">
+                <div class="inline-block bg-emerald-500 p-3 rounded-xl text-white"><i class="fa-solid fa-recycle text-3xl"></i></div>
+                <h1 class="text-lg font-extrabold text-slate-800">مديرية النظافة العامة</h1>
+                <p class="text-xs text-slate-500">تسجيل الدخول إلى منصة المتابعة</p>
+            </div>
+            <div><label class="block text-xs font-semibold text-slate-700 mb-1">اسم المستخدم</label>
+                <input id="loginUser" required autocomplete="username" autocapitalize="none" dir="ltr" class="w-full p-2.5 border rounded-lg text-sm"></div>
+            <div><label class="block text-xs font-semibold text-slate-700 mb-1">كلمة المرور</label>
+                <input id="loginPass" type="password" required autocomplete="current-password" dir="ltr" class="w-full p-2.5 border rounded-lg text-sm"></div>
+            <div id="loginError" class="hidden text-xs text-rose-600 font-semibold"></div>
+            <button class="w-full bg-gov-700 hover:bg-gov-800 text-white font-bold py-2.5 rounded-lg text-sm">دخول</button>
+        </form>
+    </div>
+    <!-- FORCED PASSWORD CHANGE -->
+    <div id="pwScreen" class="hidden fixed inset-0 z-[100] bg-gov-900 flex items-center justify-center p-4">
+        <form onsubmit="doChangePassword(event)" class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <h2 class="text-base font-extrabold text-slate-800">تغيير كلمة المرور</h2>
+            <p class="text-xs text-slate-500">يجب تعيين كلمة مرور جديدة قبل المتابعة (8 أحرف على الأقل).</p>
+            <input id="pwOld" type="password" required placeholder="كلمة المرور الحالية" dir="ltr" class="w-full p-2.5 border rounded-lg text-sm">
+            <input id="pwNew" type="password" required minlength="8" placeholder="كلمة المرور الجديدة" dir="ltr" class="w-full p-2.5 border rounded-lg text-sm">
+            <input id="pwNew2" type="password" required minlength="8" placeholder="تأكيد كلمة المرور الجديدة" dir="ltr" class="w-full p-2.5 border rounded-lg text-sm">
+            <div id="pwError" class="hidden text-xs text-rose-600 font-semibold"></div>
+            <button class="w-full bg-gov-700 hover:bg-gov-800 text-white font-bold py-2.5 rounded-lg text-sm">حفظ ومتابعة</button>
+            <button type="button" onclick="doLogout()" class="w-full text-xs text-slate-500">تسجيل خروج</button>
+        </form>
+    </div>
+
+    <div id="app" class="hidden min-h-screen flex flex-col">
+
+        <!-- HEADER & TOOLBAR -->
+        <header class="bg-gov-900 text-white shadow-md sticky top-0 z-50">
+            <div class="max-w-7xl mx-mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <div class="bg-emerald-500 p-2.5 rounded-xl text-white shadow-lg">
+                        <i class="fa-solid fa-recycle text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold leading-tight">منصة إدارة ومتابعة مديرية النظافة</h1>
+                        <p class="text-xs text-slate-300">نظام المتابعة الرقمية وغرفة العمليات الميدانية</p>
+                    </div>
+                </div>
+
+                <!-- Global Search & User Switcher -->
+                <div class="flex items-center gap-3 flex-wrap">
+                    <div class="relative min-w-[240px]">
+                        <input type="text" id="globalSearchInput" onkeyup="handleGlobalSearch()" placeholder="بحث شامل (آلية، شكوى، موظف...)" 
+                               class="w-full bg-gov-800 text-xs text-white placeholder-slate-400 px-3 py-2 pr-9 rounded-lg border border-gov-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                        <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-slate-400 text-xs"></i>
+                        <div id="searchResults" class="hidden absolute left-0 right-0 top-full mt-1 bg-white text-slate-800 rounded-lg shadow-xl border border-slate-200 z-50 max-h-60 overflow-y-auto"></div>
+                    </div>
+
+                    <div class="bg-gov-800 px-3 py-1.5 rounded-lg border border-gov-700 flex items-center gap-2">
+                        <i class="fa-solid fa-user-shield text-emerald-400 text-sm"></i>
+                        <span id="whoName" class="text-xs font-bold"></span>
+                        <span id="whoRole" class="text-[11px] text-slate-300"></span>
+                        <button onclick="doLogout()" class="text-[11px] bg-rose-600 hover:bg-rose-700 px-2 py-1 rounded font-bold">خروج</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-circle-info text-amber-600"></i>
+                <span>نموذج محاكاة حقيقي للنظام التكاملي لإدارة العمليات، المحروقات، الآليات والشكاوى.</span>
+            </div>
+            <button onclick="toggleModal('architectureModal')" class="bg-amber-600 text-white px-2.5 py-1 rounded hover:bg-amber-700 font-bold transition">
+                <i class="fa-solid fa-sitemap ml-1"></i> عرض المخطط المعماري وهيكل البيانات
+            </button>
+        </div>
+
+        <!-- MAIN LAYOUT WRAPPER -->
+        <div class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col md:flex-row gap-6">
+
+            <!-- SIDEBAR NAVIGATION -->
+            <aside class="w-full md:w-64 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-2 flex-shrink-0">
+                <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">شاشات النظام</div>
+                <nav id="navContainer" class="space-y-1">
+                    <!-- Nav Items rendered dynamically based on Role -->
+                </nav>
+
+                <hr class="my-4 border-slate-100">
+
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div class="text-xs font-bold text-slate-700 mb-1">المؤشرات السريعة</div>
+                    <div class="text-[11px] text-slate-500 space-y-1">
+                        <div class="flex justify-between"><span>التقارير اليومية:</span> <span class="font-bold text-emerald-600">8/9 مكتملة</span></div>
+                        <div class="flex justify-between"><span>الشكاوى النشطة:</span> <span class="font-bold text-amber-600">12 معلقة</span></div>
+                        <div class="flex justify-between"><span>الآليات المتوقفة:</span> <span class="font-bold text-rose-600">3 صيانة</span></div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- MAIN CONTENT AREA -->
+            <main class="flex-1 space-y-6 overflow-hidden">
+
+                <!-- 1. DIRECTOR DASHBOARD VIEW -->
+                <section id="view-DIRECTOR" class="view-panel space-y-6">
+                    <div class="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">صباح الخير، مدير المديرية 👋</h2>
+                            <p class="text-xs text-slate-500">نظام المتابعة اليومي والتحكم بمركز العمليات الرئيسي</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="exportToExcel('directorTasks')" class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-100">
+                                <i class="fa-solid fa-file-excel ml-1"></i> تصدير Excel
+                            </button>
+                            <button onclick="window.print()" class="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-200">
+                                <i class="fa-solid fa-print ml-1"></i> طباعة
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Executive Stats Cards -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                            <div class="p-3 bg-blue-50 text-blue-600 rounded-xl"><i class="fa-solid fa-list-check text-xl"></i></div>
+                            <div>
+                                <div class="text-xs text-slate-500 font-semibold">إجمالي المهام</div>
+                                <div class="text-xl font-bold text-slate-800" id="stat-total-tasks">0</div>
+                                <div class="text-[10px] text-emerald-600" id="stat-completion">-</div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                            <div class="p-3 bg-amber-50 text-amber-600 rounded-xl"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+                            <div>
+                                <div class="text-xs text-slate-500 font-semibold">الشكاوى المعلقة</div>
+                                <div class="text-xl font-bold text-amber-600" id="stat-pending-complaints">5</div>
+                                <div class="text-[10px] text-slate-400">من أصل 34 اليوم</div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                            <div class="p-3 bg-rose-50 text-rose-600 rounded-xl"><i class="fa-solid fa-truck-monster text-xl"></i></div>
+                            <div>
+                                <div class="text-xs text-slate-500 font-semibold">الآليات المعطلة</div>
+                                <div class="text-xl font-bold text-rose-600">3</div>
+                                <div class="text-[10px] text-rose-500">بحاجة صيانة ورشة</div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+                            <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><i class="fa-solid fa-building-flag text-xl"></i></div>
+                            <div>
+                                <div class="text-xs text-slate-500 font-semibold">التقارير اليومية</div>
+                                <div class="text-xl font-bold text-emerald-600">8 / 9</div>
+                                <div class="text-[10px] text-amber-600">1 بلدية متأخرة</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GIS Map & Urgent Task Creation -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-map-location-dot text-gov-600"></i> الخريطة التشغيلية التفاعلية (GIS)
+                                </h3>
+                                <span class="text-xs bg-gov-50 text-gov-700 px-2 py-0.5 rounded font-medium">مباشر</span>
+                            </div>
+                            <div id="gisMap" class="h-80 rounded-xl border border-slate-200"></div>
+                        </div>
+
+                        <!-- Urgent Director Task Assignment -->
+                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                            <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-paper-plane text-emerald-600"></i> إصدار أمر / مهمة عاجلة
+                            </h3>
+                            <div id="quickTaskFormHost"></div>
+                        </div>
+                    </div>
+
+                    <!-- Sector & Municipality Daily Progress Monitor -->
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-chart-pie text-gov-600"></i> حالة التقارير اليومية للبلديات التسع (Sector Status)
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs text-right border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                                        <th class="p-2.5">البلدية</th>
+                                        <th class="p-2.5">القطاع</th>
+                                        <th class="p-2.5">حالة التقرير</th>
+                                        <th class="p-2.5">مستوى النظافة</th>
+                                        <th class="p-2.5">العمال الحاضرون</th>
+                                        <th class="p-2.5">الآليات العاملة</th>
+                                        <th class="p-2.5">الوقود المستهلك</th>
+                                        <th class="p-2.5">الشكاوى المعالجة</th>
+                                        <th class="p-2.5">إجراء</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="municipalityTableBody" class="divide-y divide-slate-100">
+                                    <!-- Dynamic rows loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. DEPARTMENT HEAD VIEW (رئيس القسم) -->
+                <section id="view-TASKS" class="view-panel hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <h2 class="text-xl font-bold text-slate-800">إدارة المهام</h2>
+                        <p class="text-xs text-slate-500">أسند مهاماً ضمن تسلسلك الإداري وتابع حالتها. البيانات هنا حقيقية ومحفوظة.</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm"><div id="tasksFormHost"></div></div>
+                        <div class="lg:col-span-2 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+                            <table class="w-full text-xs text-right border-collapse">
+                                <thead><tr class="bg-slate-50 border-b text-slate-600 font-bold">
+                                    <th class="p-2">#</th><th class="p-2">المهمة</th><th class="p-2">المسند إليه</th><th class="p-2">الأولوية</th><th class="p-2">الحالة</th><th class="p-2">إجراء</th>
+                                </tr></thead>
+                                <tbody id="tasksTableBody" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-USERS" class="view-panel hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <h2 class="text-xl font-bold text-slate-800">إدارة المستخدمين</h2>
+                        <p class="text-xs text-slate-500">كلمة المرور المؤقتة تُسلَّم للموظف مباشرة، ويُجبر على تغييرها عند أول دخول.</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <form onsubmit="doCreateUser(event)" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3 text-xs">
+                            <h3 class="font-bold text-sm text-slate-800">إضافة مستخدم</h3>
+                            <input id="uFull" required minlength="2" maxlength="80" placeholder="الاسم الكامل" class="w-full p-2 border rounded-lg">
+                            <input id="uName" required pattern="[A-Za-z0-9._-]{3,32}" placeholder="اسم المستخدم (إنكليزي، 3-32)" dir="ltr" class="w-full p-2 border rounded-lg">
+                            <select id="uRole" class="w-full p-2 border rounded-lg bg-white"></select>
+                            <input id="uPass" required minlength="8" placeholder="كلمة مرور مؤقتة (8 أحرف+)" dir="ltr" class="w-full p-2 border rounded-lg">
+                            <button class="w-full bg-gov-700 hover:bg-gov-800 text-white font-bold py-2 rounded-lg">إنشاء</button>
+                        </form>
+                        <div class="lg:col-span-2 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+                            <table class="w-full text-xs text-right border-collapse">
+                                <thead><tr class="bg-slate-50 border-b text-slate-600 font-bold">
+                                    <th class="p-2">الاسم</th><th class="p-2">المستخدم</th><th class="p-2">الدور</th><th class="p-2">الحالة</th><th class="p-2">إجراء</th>
+                                </tr></thead>
+                                <tbody id="usersTableBody" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-DEPT_HEAD" class="view-panel hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">قسم الآليات والصيانة والورش 🛠️</h2>
+                            <p class="text-xs text-slate-500">إدارة كشوف الآليات، الصيانة، وتكليف الموظفين والمهام</p>
+                        </div>
+                        <span class="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-bold">رئيس قسم</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Technical Vehicle Inspection Cycle Trigger -->
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                            <h3 class="font-bold text-slate-800 text-sm border-b pb-2">إنشاء أمر كشف فني على آلية معطلة</h3>
+                            <form onsubmit="handleCreateInspection(event)" class="space-y-3 text-xs">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block font-semibold mb-1">رقم الآلية</label>
+                                        <input type="text" id="inspVehicleNo" required class="w-full p-2 border rounded-lg" placeholder="مثال: TRK-104">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold mb-1">نوع الآلية</label>
+                                        <select id="inspVehicleType" class="w-full p-2 border rounded-lg bg-white">
+                                            <option>ضاغطة نفايات 12m³</option>
+                                            <option>كنّاسة آلية</option>
+                                            <option>شاحنة نقل قلاب</option>
+                                            <option>صهريج غسيل</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1">العطل المبلغ عنه</label>
+                                    <textarea id="inspFaultDesc" required class="w-full p-2 border rounded-lg" rows="2" placeholder="وصف العطل المبدئي..."></textarea>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1">تكليف موظف الكشف</label>
+                                    <select id="inspAssignedEmp" class="w-full p-2 border rounded-lg bg-white">
+                                        <option value="مهندس أحمد الفني">مهندس أحمد الفني (قسم الصيانة)</option>
+                                        <option value="فني ميكانيك خالد">فني ميكانيك خالد</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="w-full bg-emeraldGov-600 hover:bg-emeraldGov-700 text-white font-bold py-2 rounded-lg transition">
+                                    إرسال أمر الكشف للموظف
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Active Technical Inspections & Repairs -->
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                            <h3 class="font-bold text-slate-800 text-sm border-b pb-2">سلسلة كشوفات وإصلاح الآليات الحالية</h3>
+                            <div id="inspectionsList" class="space-y-3 text-xs max-h-80 overflow-y-auto">
+                                <!-- Dynamic dynamic cards -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. SECTOR SUPERVISOR VIEW (مشرف القطاع) -->
+                <section id="view-SECTOR_SUPERVISOR" class="view-panel hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">متابعة القطاع الأول (9 بلديات) 📍</h2>
+                            <p class="text-xs text-slate-500">إشراف ميداني، متابعة المحروقات، والزيارات التفتيشية</p>
+                        </div>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-bold">مشرف قطاع</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                            <div class="text-xs text-slate-500">مجموع العمال الميدانيين اليوم</div>
+                            <div class="text-2xl font-bold text-gov-800 mt-1">142 عامل</div>
+                            <div class="text-[10px] text-emerald-600">نسبة التواجد 95%</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                            <div class="text-xs text-slate-500">استهلاك المحروقات اليومي</div>
+                            <div class="text-2xl font-bold text-amber-600 mt-1">1,850 لتر</div>
+                            <div class="text-[10px] text-slate-400">ضمن المعدل الطبيعي للقطاع</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                            <div class="text-xs text-slate-500">الحملات والمؤازرات التخصصية</div>
+                            <div class="text-2xl font-bold text-blue-600 mt-1">3 حملات</div>
+                            <div class="text-[10px] text-blue-500">جارية الآن في بلدية الشمال</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                        <h3 class="font-bold text-slate-800 text-sm">تسجيل زيارة ميدانية وملاحظات تفتيشية</h3>
+                        <form onsubmit="handleSectorVisit(event)" class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                            <div>
+                                <label class="block font-semibold mb-1">البلدية المستهدفة</label>
+                                <select id="visitMunicipality" class="w-full p-2 border rounded-lg bg-white">
+                                    <option>بلدية المركز</option>
+                                    <option>بلدية الشمال</option>
+                                    <option>بلدية الجنوب</option>
+                                    <option>بلدية الشرق</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1">نوع الملاحظة / الزيارة</label>
+                                <select id="visitType" class="w-full p-2 border rounded-lg bg-white">
+                                    <option>تفتيش نظافة عامة</option>
+                                    <option>تدقيق استهلاك وقود</option>
+                                    <option>معاينة مكب عشوائي</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold mb-1">التقييم الميداني</label>
+                                <select id="visitRating" class="w-full p-2 border rounded-lg bg-white">
+                                    <option>ممتاز (90-100%)</option>
+                                    <option>جيد جداً (80-89%)</option>
+                                    <option>ملاحظات تحتاج تصويب (أقل من 70%)</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block font-semibold mb-1">تفاصيل التقرير الميداني للمشرف</label>
+                                <input type="text" id="visitNotes" required class="w-full p-2 border rounded-lg" placeholder="اكتب الملاحظات والتوصيات هنا...">
+                            </div>
+                            <div class="md:col-span-3 text-left">
+                                <button type="submit" class="bg-gov-800 text-white font-bold px-4 py-2 rounded-lg text-xs hover:bg-gov-900">
+                                    رفع التقرير الميداني
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- 4. MUNICIPALITY SUPERVISOR VIEW (مشرف البلدية - التقرير اليومي) -->
+                <section id="view-MUNICIPALITY_SUPERVISOR" class="view-panel hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">النموذج اليومي الموحد - مشرف نظافة البلدية 📝</h2>
+                            <p class="text-xs text-slate-500">إدخال بيانات العمليات الميدانية، المحروقات، الشكاوى والعمالة مرة واحدة</p>
+                        </div>
+                        <span class="bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold">بلدية المركز</span>
+                    </div>
+
+                    <form onsubmit="handleDailyReportSubmit(event)" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Section 1: Cleanliness & Workers -->
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3 text-xs">
+                                <h3 class="font-bold text-gov-800 border-b pb-2 text-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-broom"></i> 1. حالة النظافة والعمالة
+                                </h3>
+                                <div>
+                                    <label class="block font-semibold mb-1">مستوى النظافة العام اليوم</label>
+                                    <select id="rptCleanlinessLevel" class="w-full p-2 border rounded-lg bg-white">
+                                        <option value="ممتاز">ممتاز - شوارع رئيسية وفرعية نظيفة بالكامل</option>
+                                        <option value="جيد">جيد - تراكمات بسيطة جاري معالجتها</option>
+                                        <option value="بحاجة تدخل">بحاجة تدخل طارئ - نقاط ساخنة</option>
+                                    </select>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="block font-semibold mb-1">العمال الحاضرون</label>
+                                        <input type="number" id="rptWorkersPresent" value="38" class="w-full p-2 border rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold mb-1">الغائبون</label>
+                                        <input type="number" id="rptWorkersAbsent" value="2" class="w-full p-2 border rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold mb-1">النقص/العجز</label>
+                                        <input type="number" id="rptWorkersShortage" value="0" class="w-full p-2 border rounded-lg">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1">الأحياء والمناطق المخدومة اليوم</label>
+                                    <input type="text" id="rptCleanedAreas" value="حي الزهور، شارع الرشيد، الميدان العام" class="w-full p-2 border rounded-lg">
+                                </div>
+                            </div>
+
+                            <!-- Section 2: Vehicles & Fuel -->
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3 text-xs">
+                                <h3 class="font-bold text-gov-800 border-b pb-2 text-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-gas-pump"></i> 2. الآليات والمحروقات
+                                </h3>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="block font-semibold mb-1">الآليات العاملة</label>
+                                        <input type="number" id="rptVehiclesActive" value="6" class="w-full p-2 border rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold mb-1">المتوقفة/صيانة</label>
+                                        <input type="number" id="rptVehiclesMaintenance" value="1" class="w-full p-2 border rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold mb-1">المعطلة تماماً</label>
+                                        <input type="number" id="rptVehiclesBroken" value="0" class="w-full p-2 border rounded-lg">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="block font-semibold mb-1">الوقود المستلم (لتر)</label>
+                                        <input type="number" id="rptFuelReceived" value="400" class="w-full p-2 border rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold mb-1">الوقود المستهلك</label>
+                                        <input type="number" id="rptFuelConsumed" value="380" class="w-full p-2 border rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold mb-1">الرصيد المتبقي</label>
+                                        <input type="number" id="rptFuelBalance" value="20" class="w-full p-2 border rounded-lg" readonly>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold mb-1">ملاحظات وقود الآليات</label>
+                                    <input type="text" id="rptFuelNotes" value="تم تزويد الضاغطات TRK-101 و TRK-102 بالوقود" class="w-full p-2 border rounded-lg">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm text-xs space-y-3">
+                            <h3 class="font-bold text-gov-800 border-b pb-2 text-sm">ملاحظات التقرير والتوصيات الميدانية</h3>
+                            <textarea id="rptGeneralNotes" rows="2" class="w-full p-2 border rounded-lg" placeholder="أي صعوبات، احتياجات، أو بؤر ساخنة تحتاج مؤازرة..."></textarea>
+                            <div class="text-left">
+                                <button type="submit" class="bg-emeraldGov-600 hover:bg-emeraldGov-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-md transition">
+                                    <i class="fa-solid fa-paper-plane ml-1"></i> اعتماد وإرسال التقرير اليومي للمديرية
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- 5. EMPLOYEE FIELD TASK VIEW (الموظف) -->
+                <section id="view-EMPLOYEE" class="view-panel hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">مهامي</h2>
+                            <p class="text-xs text-slate-500">المهام المسندة إليك — ابدأ التنفيذ ثم سجّل الإنجاز</p>
+                        </div>
+                        <span id="myRoleBadge" class="bg-indigo-100 text-indigo-800 text-xs px-3 py-1 rounded-full font-bold"></span>
+                    </div>
+
+                    <!-- Assigned Tasks List for Employee -->
+                    <div class="space-y-4" id="employeeTasksList">
+                        <!-- Dynamic Cards Loaded via JS -->
+                    </div>
+                </section>
+
+                <!-- 6. DRIVER TASK VIEW (السائق) -->
+                <section id="view-DRIVER" class="view-panel hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800">واجهة السائق الميدانية 🚛</h2>
+                            <p class="text-xs text-slate-500">تسجيل الوصول الجغرافي (GPS Lock) وتتبع مسار النقل</p>
+                        </div>
+                        <span class="bg-purple-100 text-purple-800 text-xs px-3 py-1 rounded-full font-bold">سائق آلية</span>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <div class="border-b pb-3 flex justify-between items-center">
+                            <div>
+                                <span class="text-xs font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">مهمة نقل جارية</span>
+                                <h3 class="text-base font-bold text-slate-800 mt-1">تفنيغ حاويات القطاع الأول إلى المحطة الوسيطة</h3>
+                            </div>
+                            <div class="text-left">
+                                <span class="text-xs text-slate-400 block">المركبة المخصصة</span>
+                                <span class="font-bold text-slate-700 text-sm">ضاغطة TRK-101</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 text-xs">
+                            <div class="bg-slate-50 p-3 rounded-lg border">
+                                <span class="text-slate-500 block">نقطة الانطلاق:</span>
+                                <strong class="text-slate-800">كراج البلديات المركزي</strong>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-lg border">
+                                <span class="text-slate-500 block">الوجهة المحملة:</span>
+                                <strong class="text-slate-800">المحطة الوسيطة - نقطة A</strong>
+                            </div>
+                        </div>
+
+                        <!-- GPS Verification Button -->
+                        <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-center space-y-3">
+                            <p class="text-xs text-emerald-800">يرجى الضغط عند الوصول الفعلي للنطاق الجغرافي (Geofence Matrix)</p>
+                            <button id="driverGpsBtn" onclick="registerDriverArrival()" class="bg-emeraldGov-600 hover:bg-emeraldGov-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg transition flex items-center justify-center gap-2 mx-auto">
+                                <i class="fa-solid fa-location-crosshairs text-lg"></i>
+                                <span>وصلت إلى الموقع وتسجيل GPS</span>
+                            </button>
+                            <div id="gpsStatusText" class="text-xs text-slate-500 font-mono hidden">
+                                <i class="fa-solid fa-circle-check text-emerald-600"></i> تم التوثيق: Lat 31.952, Long 35.912 | الساعة 10:42 AM
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="complaintsModule" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="flex justify-between items-center border-b pb-3">
+                        <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-circle-exclamation text-rose-500"></i> إدارة وتوثيق الشكاوى الميدانية (قبل / بعد المعالجة)
+                        </h3>
+                        <button onclick="toggleModal('newComplaintModal')" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition">
+                            <i class="fa-solid fa-plus ml-1"></i> تسجيل شكوى جديدة
+                        </button>
+                    </div>
+
+                    <div id="complaintsList" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Dynamic Complaint Cards rendered by JS -->
+                    </div>
+                </section>
+
+                <section id="reportsModule" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="flex justify-between items-center border-b pb-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                                <i class="fa-solid fa-file-invoice text-gov-700"></i> التقارير الموحدة التلقائية (Directorate Reports)
+                            </h3>
+                            <p class="text-xs text-slate-500">تُجمع تلقائياً من بيانات الميدان دون الحاجة لإعادة كتابتها</p>
+                        </div>
+                        <button onclick="generateMonthlyReport()" class="bg-gov-800 hover:bg-gov-900 text-white text-xs font-bold px-4 py-2 rounded-lg transition">
+                            <i class="fa-solid fa-wand-magic-sparkles ml-1"></i> توليد التقرير الشهري الشامل
+                        </button>
+                    </div>
+
+                    <div id="reportPreviewArea" class="hidden bg-slate-50 p-6 rounded-xl border border-slate-300 space-y-4 text-xs">
+                        <!-- Auto Generated Report Header -->
+                        <div class="text-center border-b pb-4">
+                            <h2 class="text-lg font-bold text-gov-900">التقرير الشهري الموحد لمديرية النظافة العامة</h2>
+                            <p class="text-slate-500">عن شهر أكتوبر 2026 - صادرة من النظام المركزي الرقمي</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div class="bg-white p-3 rounded border text-center">
+                                <span class="text-slate-500 block">إجمالي الشكاوى المعالجة</span>
+                                <strong class="text-emerald-600 text-base" id="rptRepComplaints">29 / 34</strong>
+                            </div>
+                            <div class="bg-white p-3 rounded border text-center">
+                                <span class="text-slate-500 block">إجمالي كمية الوقود</span>
+                                <strong class="text-gov-800 text-base">34,500 لتر</strong>
+                            </div>
+                            <div class="bg-white p-3 rounded border text-center">
+                                <span class="text-slate-500 block">نسبة جاهزية الأسطول</span>
+                                <strong class="text-blue-600 text-base">91.2%</strong>
+                            </div>
+                            <div class="bg-white p-3 rounded border text-center">
+                                <span class="text-slate-500 block">معدل تقييم النظافة</span>
+                                <strong class="text-emerald-600 text-base">جيد جداً (88%)</strong>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <h4 class="font-bold text-slate-800">1. الملخص التنفيذي والمؤشرات الرئيسية</h4>
+                            <p class="text-slate-600 leading-relaxed">أظهرت البيانات التراكمية المستخرجة من نظام المتابعة الميداني تحقيق نسبة إنجاز عالية في خطط رفع النفايات المباشرة الصباحية والمسائية. تم التعامل مع كافة التراكمات في القطاع الأول بنسبة 94% مع استجابة فورية للشكاوى البالغة 34 شكوى.</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <h4 class="font-bold text-slate-800">2. التوصيات والقرارات المطلوبة من مدير المديرية</h4>
+                            <ul class="list-disc list-inside text-slate-600 space-y-1">
+                                <li>الموافقة على أمر إصلاح الشامل للضاغطة TRK-104 وتأمين قطع الغيار.</li>
+                                <li>تعزيز الكادر العمالي لبلدية الشمال بنسبة 5 عمال لمواجهة التوسع السكاني.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="auditLogModule" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-slate-600"></i> سجل الإجراءات الأمني (System Audit Log)
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-[11px] text-right border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 font-bold">
+                                    <th class="p-2">الوقت والتاريخ</th>
+                                    <th class="p-2">المستخدم</th>
+                                    <th class="p-2">الدور</th>
+                                    <th class="p-2">الإجراء المتخذ</th>
+                                    <th class="p-2">السجل المتأثر</th>
+                                </tr>
+                            </thead>
+                            <tbody id="auditLogTableBody" class="divide-y divide-slate-100 font-mono">
+                                <!-- Loaded dynamically via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+
+        <!-- SYSTEM ARCHITECTURE MODAL -->
+        <div id="architectureModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6 text-xs shadow-2xl">
+                <div class="flex justify-between items-center border-b pb-3">
+                    <h3 class="text-base font-bold text-gov-900 flex items-center gap-2">
+                        <i class="fa-solid fa-diagram-project"></i> المخطط الهيكلي وقواعد البيانات ونظرة العمليات
+                    </h3>
+                    <button onclick="toggleModal('architectureModal')" class="text-slate-400 hover:text-slate-700 text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-gov-800 border-b pb-1">1. الهيكل الإداري ومصفوفة الصلاحيات (RBAC)</h4>
+                        <p class="text-slate-600"><strong>المدير:</strong> اعتماد تقارير، إصدار قرارات، إنشاء أقسام، صلاحيات شمولية.</p>
+                        <p class="text-slate-600"><strong>رئيس القسم:</strong> إدارة الموظفين، تكليف الكشوفات، إحالة الصيانة.</p>
+                        <p class="text-slate-600"><strong>مشرف القطاع:</strong> متابعة البلديات التابعة (9 بلديات)، تقارير الزيارات.</p>
+                        <p class="text-slate-600"><strong>مشرف البلدية:</strong> إدخال التقرير اليومي الموحد (عمال، آليات، وقود، شكاوى).</p>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-gov-800 border-b pb-1">2. قواعد البيانات والكيانات الرئيسية (Database Schemas)</h4>
+                        <div class="font-mono text-[10px] text-slate-700 space-y-1">
+                            <div>• Users(id, name, role_id, sector_id)</div>
+                            <div>• Tasks(id, title, status, assigned_to, lat, long, geofence_radius)</div>
+                            <div>• Complaints(id, title, img_before, img_after, status, gps)</div>
+                            <div>• Vehicle_Inspections(id, vehicle_no, fault_desc, decision)</div>
+                            <div>• Daily_Municipality_Reports(id, muni_id, workers, fuel, cleanliness)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 space-y-2">
+                    <h4 class="font-bold text-blue-900">3. دورات حياة العمليات الميدانية (Lifecycle Workflows)</h4>
+                    <p class="text-slate-700"><strong>دورة إصلاح الآلية:</strong> بلاغ عطل ← إسناد كشف فني ← وصول الموظف وتوثيق GPS ← تشخيص وتحديد تكلفة ← قرار المدير بالاعتماد ← صيانة الورشة ← استلام وإعادة للخدمة.</p>
+                    <p class="text-slate-700"><strong>دورة التقرير اليومي:</strong> مشرف البلدية يُدخل البيانات مرة واحدة ← تجميع تلقائي لتقرير القطاع ← تحديث مؤشرات لوحة المدير التلقائي ← توليد التقرير الشهري التجميعي.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW COMPLAINT MODAL -->
+        <div id="newComplaintModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 text-xs shadow-2xl">
+                <div class="flex justify-between items-center border-b pb-2">
+                    <h3 class="font-bold text-slate-800 text-sm">تسجيل شكوى جديدة مع توثيق الموقع</h3>
+                    <button onclick="toggleModal('newComplaintModal')" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-base"></i></button>
+                </div>
+                <form onsubmit="handleCreateComplaint(event)" class="space-y-3">
+                    <div>
+                        <label class="block font-semibold mb-1">عنوان / نوع الشكوى</label>
+                        <input type="text" id="cmpTitle" required class="w-full p-2 border rounded-lg" placeholder="مثال: تراكم نفايات قرب المدرسة">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">البلدية والمنطقة</label>
+                        <select id="cmpMunicipality" class="w-full p-2 border rounded-lg bg-white">
+                            <option>بلدية المركز</option>
+                            <option>بلدية الشمال</option>
+                            <option>بلدية الجنوب</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">صورة قبل المعالجة (محاكاة رابط)</label>
+                        <input type="text" id="cmpImgBefore" class="w-full p-2 border rounded-lg" value="https://images.unsplash.com/photo-1530587191325-3db32d826c18?w=400">
+                    </div>
+                    <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-lg transition">
+                        حفظ الشكوى في النظام
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <footer class="bg-slate-900 text-slate-400 text-xs py-4 px-6 border-t border-slate-800 mt-auto">
+            <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+                <div>منصة إدارة ومتابعة مديرية النظافة العامة © 2026 - جميع الحقوق محفوظة</div>
+                <div class="flex gap-4">
+                    <span>النسخة التفاعلية v2.5</span>
+                    <span>جاهز للربط مع GIS & Excel & WhatsApp</span>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <script>
+        // GLOBAL STATE DATABASE (Mock Data reflecting real operations)
+        const AppState = {
+            currentRole: null, me: null, token: null, assignable: [], users: [],
+            municipalities: [
+                { id: 1, name: 'بلدية المركز', sector: 'القطاع الأول', status: 'مكتمل', level: 'ممتاز', workers: '38/40', vehicles: '6/7', fuel: '380 لتر', complaints: '5/5' },
+                { id: 2, name: 'بلدية الشمال', sector: 'القطاع الأول', status: 'مكتمل', level: 'جيد', workers: '25/25', vehicles: '4/4', fuel: '290 لتر', complaints: '3/4' },
+                { id: 3, name: 'بلدية الجنوب', sector: 'القطاع الأول', status: 'لم يرسل', level: 'تحت المتابعة', workers: '-/-', vehicles: '-/-', fuel: '- لتر', complaints: '0/2' },
+                { id: 4, name: 'بلدية الشرق', sector: 'القطاع الثاني', status: 'مكتمل', level: 'ممتاز', workers: '30/30', vehicles: '5/5', fuel: '310 لتر', complaints: '2/2' },
+                { id: 5, name: 'بلدية الغرب', sector: 'القطاع الثاني', status: 'ناقص', level: 'جيد', workers: '18/20', vehicles: '3/4', fuel: '200 لتر', complaints: '1/3' },
+            ],
+            tasks: [],
+            complaints: [
+                {
+                    id: 501,
+                    title: 'تراكم نفايات في شارع القدس',
+                    municipality: 'بلدية المركز',
+                    status: 'تمت المعالجة',
+                    beforeImg: 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?w=400',
+                    afterImg: 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=400',
+                    time: '10:15 AM',
+                    lat: 31.953,
+                    lng: 35.915
+                },
+                {
+                    id: 502,
+                    title: 'حاوية مكسورة قرب الميدان',
+                    municipality: 'بلدية الشمال',
+                    status: 'قيد المعالجة',
+                    beforeImg: 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?w=400',
+                    afterImg: null,
+                    time: '11:30 AM',
+                    lat: 31.960,
+                    lng: 35.925
+                }
+            ],
+            inspections: [
+                { id: 801, vehicleNo: 'TRK-104', type: 'ضاغطة نفايات 12m³', fault: 'تسريب زيت في هيدروليك الضاغط', assigned: 'مهندس أحمد الفني', status: 'بانتظار قرار المدير', diagnosis: 'يحتاج تغيير صمام هيدروليك رئيسي' }
+            ],
+            auditLogs: []
+        };
+
+        let mapInstance = null;
+        let taskLayer = null;
+
+        // ======== طبقة الخادم ========
+        const API = (window.APP_CONFIG && window.APP_CONFIG.API_BASE || '').replace(/\/$/, '') + '/api';
+        const ROLE_LABEL = { DIRECTOR: 'مدير المديرية', DEPT_HEAD: 'رئيس قسم', SECTOR_SUPERVISOR: 'مشرف قطاع', MUNICIPALITY_SUPERVISOR: 'مشرف بلدية', EMPLOYEE: 'موظف ميداني', DRIVER: 'سائق' };
+        const TYPE_LABEL = { FIELD: 'مهمة ميدانية', INSPECTION: 'كشف فني', CAMPAIGN: 'حملة نظافة', COMPLAINT_FOLLOWUP: 'متابعة شكوى' };
+        const PRIO_LABEL = { HIGH: 'عالية', MEDIUM: 'متوسطة', LOW: 'منخفضة' };
+        const STATUS_LABEL = { NEW: 'جديدة', IN_PROGRESS: 'قيد التنفيذ', DONE: 'مكتملة', CANCELLED: 'ملغاة' };
+        const STATUS_COLOR = { NEW: 'text-sky-600', IN_PROGRESS: 'text-amber-600', DONE: 'text-emerald-600', CANCELLED: 'text-slate-400' };
+        const ERR = {
+            INVALID_CREDENTIALS: 'اسم المستخدم أو كلمة المرور غير صحيحة', TOO_MANY_ATTEMPTS: 'محاولات كثيرة، حاول بعد 15 دقيقة',
+            WEAK_PASSWORD: 'كلمة المرور ضعيفة (8 أحرف على الأقل ومختلفة عن الحالية)', USERNAME_TAKEN: 'اسم المستخدم مستخدم مسبقاً',
+            FORBIDDEN: 'ليست لديك صلاحية لهذا الإجراء', CANNOT_ASSIGN_TO_THIS_USER: 'لا يمكنك الإسناد إلى هذا المستخدم',
+            INVALID_TRANSITION: 'لا يمكن تغيير حالة هذه المهمة', NOT_FOUND: 'غير موجود', BAD_USERNAME: 'اسم المستخدم غير صالح',
+        };
+        const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const fmtTime = (iso) => iso ? new Date(iso).toLocaleString('ar-SY', { timeZone: 'Asia/Damascus', dateStyle: 'short', timeStyle: 'short' }) : '';
+
+        async function api(method, path, body) {
+            let res;
+            try {
+                res = await fetch(API + path, {
+                    method,
+                    headers: { 'Content-Type': 'application/json', ...(AppState.token ? { Authorization: 'Bearer ' + AppState.token } : {}) },
+                    body: body ? JSON.stringify(body) : undefined,
+                });
+            } catch (e) { throw { code: 'NETWORK', message: 'تعذّر الاتصال بالخادم. تحقق من الإنترنت أو عنوان الخادم.' }; }
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 401 && path !== '/auth/login' && path !== '/auth/change-password') { doLogout(); throw { code: 'UNAUTHENTICATED', message: 'انتهت الجلسة، سجّل الدخول من جديد' }; }
+            if (!res.ok) throw { code: data.error || 'ERROR', status: res.status, message: ERR[data.error] || 'حدث خطأ (' + (data.error || res.status) + ')' };
+            return data;
+        }
+        const showErr = (e) => alert(e.message || 'حدث خطأ');
+        const setText = (id, t) => { const el = document.getElementById(id); if (el) { el.textContent = t; el.classList.toggle('hidden', !t); } };
+
+        const ROLE_VIEWS = {
+            DIRECTOR: ['DIRECTOR', 'TASKS', 'USERS', 'EMPLOYEE', 'DEPT_HEAD', 'SECTOR_SUPERVISOR', 'MUNICIPALITY_SUPERVISOR', 'DRIVER'],
+            DEPT_HEAD: ['DEPT_HEAD', 'TASKS', 'EMPLOYEE'],
+            SECTOR_SUPERVISOR: ['SECTOR_SUPERVISOR', 'TASKS', 'EMPLOYEE'],
+            MUNICIPALITY_SUPERVISOR: ['MUNICIPALITY_SUPERVISOR', 'EMPLOYEE'],
+            EMPLOYEE: ['EMPLOYEE'],
+            DRIVER: ['DRIVER', 'EMPLOYEE'],
+        };
+        const REAL_VIEWS = ['TASKS', 'USERS', 'EMPLOYEE'];
+        const CAN_CREATE_TASK = ['DIRECTOR', 'DEPT_HEAD', 'SECTOR_SUPERVISOR'];
+
+        function saveSession() { try { localStorage.setItem('wd_token', AppState.token); } catch (e) {} }
+        function clearSession() { try { localStorage.removeItem('wd_token'); } catch (e) {} }
+
+        async function doLogin(e) {
+            e.preventDefault();
+            setText('loginError', '');
+            try {
+                const d = await api('POST', '/auth/login', { username: document.getElementById('loginUser').value.trim(), password: document.getElementById('loginPass').value });
+                AppState.token = d.token; AppState.me = d.user; saveSession();
+                document.getElementById('loginPass').value = '';
+                await enterApp();
+            } catch (err) { setText('loginError', err.message); }
+        }
+
+        async function doChangePassword(e) {
+            e.preventDefault();
+            setText('pwError', '');
+            const n = document.getElementById('pwNew').value;
+            if (n !== document.getElementById('pwNew2').value) return setText('pwError', 'تأكيد كلمة المرور غير مطابق');
+            try {
+                const d = await api('POST', '/auth/change-password', { currentPassword: document.getElementById('pwOld').value, newPassword: n });
+                AppState.token = d.token; AppState.me = d.user; saveSession();
+                ['pwOld', 'pwNew', 'pwNew2'].forEach((i) => (document.getElementById(i).value = ''));
+                await enterApp();
+            } catch (err) { setText('pwError', err.message); }
+        }
+
+        function doLogout() {
+            clearSession();
+            AppState.token = null; AppState.me = null; AppState.tasks = []; AppState.users = [];
+            ['app', 'pwScreen'].forEach((i) => document.getElementById(i).classList.add('hidden'));
+            document.getElementById('loginScreen').classList.remove('hidden');
+        }
+
+        async function enterApp() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            if (AppState.me.mustChangePassword) {
+                document.getElementById('pwScreen').classList.remove('hidden');
+                document.getElementById('app').classList.add('hidden');
+                return;
+            }
+            document.getElementById('pwScreen').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            const me = AppState.me;
+            document.getElementById('whoName').textContent = me.fullName;
+            document.getElementById('whoRole').textContent = ROLE_LABEL[me.role];
+            document.getElementById('myRoleBadge').textContent = ROLE_LABEL[me.role];
+            addDemoBanners();
+            renderTaskForms();
+            initGISMap();
+            switchRole(me.role);
+            renderAllData();
+            await refreshAll();
+        }
+
+        function addDemoBanners() {
+            const note = {
+                DIRECTOR: 'المهام والمستخدمون وسجل التدقيق حقيقية ومحفوظة. بقية المؤشرات والجداول في هذه اللوحة ما زالت تجريبية.',
+                DEPT_HEAD: 'هذا القسم تجريبي: بياناته غير محفوظة ولا تُشارَك مع الآخرين.',
+                SECTOR_SUPERVISOR: 'هذا القسم تجريبي: بياناته غير محفوظة ولا تُشارَك مع الآخرين.',
+                MUNICIPALITY_SUPERVISOR: 'هذا القسم تجريبي: بياناته غير محفوظة ولا تُشارَك مع الآخرين.',
+                DRIVER: 'هذا القسم تجريبي: بياناته غير محفوظة ولا تُشارَك مع الآخرين.',
+            };
+            Object.keys(note).forEach((r) => {
+                const p = document.getElementById('view-' + r);
+                if (p && !p.querySelector('.demo-banner')) {
+                    p.insertAdjacentHTML('afterbegin', '<div class="demo-banner bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-xl px-3 py-2">⚠ ' + note[r] + '</div>');
+                }
+            });
+        }
+
+        async function refreshAll() {
+            const me = AppState.me;
+            try {
+                const jobs = [api('GET', '/tasks').then((d) => { AppState.tasks = d.tasks; })];
+                if (CAN_CREATE_TASK.includes(me.role)) jobs.push(api('GET', '/users/assignable').then((d) => { AppState.assignable = d.users; }));
+                if (me.role === 'DIRECTOR') {
+                    jobs.push(api('GET', '/users').then((d) => { AppState.users = d.users; }));
+                    jobs.push(api('GET', '/audit').then((d) => { AppState.auditLogs = d.logs; }));
+                }
+                await Promise.all(jobs);
+            } catch (e) { if (e.code !== 'UNAUTHENTICATED') showErr(e); return; }
+            renderTaskForms(); renderEmployeeTasks(); renderTasksTable(); renderUsersTable(); renderAuditLogs(); renderStats(); refreshTaskMarkers();
+        }
+
+        function renderStats() {
+            const open = AppState.tasks;
+            const done = open.filter((t) => t.status === 'DONE').length;
+            const counted = open.filter((t) => t.status !== 'CANCELLED').length;
+            const a = document.getElementById('stat-total-tasks'); if (a) a.textContent = counted;
+            const b = document.getElementById('stat-completion'); if (b) b.textContent = counted ? Math.round((done / counted) * 100) + '% نسبة الإنجاز' : 'لا مهام بعد';
+        }
+
+        // ---- المهام ----
+        function taskFormHTML(p) {
+            const opts = AppState.assignable.map((u) => '<option value="' + u.id + '">' + esc(u.fullName) + ' — ' + ROLE_LABEL[u.role] + '</option>').join('');
+            return '<form onsubmit="doCreateTask(event, \'' + p + '\')" class="space-y-3 text-xs">' +
+                '<h3 class="font-bold text-sm text-slate-800">إصدار أمر / مهمة</h3>' +
+                '<input id="' + p + 'Title" required minlength="3" maxlength="200" placeholder="عنوان المهمة" class="w-full p-2 border rounded-lg">' +
+                '<textarea id="' + p + 'Desc" maxlength="2000" rows="2" placeholder="تفاصيل (اختياري)" class="w-full p-2 border rounded-lg"></textarea>' +
+                '<select id="' + p + 'Assignee" required class="w-full p-2 border rounded-lg bg-white">' + (opts || '<option value="">لا يوجد مستخدمون للإسناد بعد</option>') + '</select>' +
+                '<select id="' + p + 'Type" class="w-full p-2 border rounded-lg bg-white">' + Object.entries(TYPE_LABEL).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select>' +
+                '<select id="' + p + 'Prio" class="w-full p-2 border rounded-lg bg-white"><option value="HIGH">أولوية عالية</option><option value="MEDIUM" selected>أولوية متوسطة</option><option value="LOW">أولوية منخفضة</option></select>' +
+                '<button class="w-full bg-gov-700 hover:bg-gov-800 text-white font-bold py-2 rounded-lg">إسناد المهمة</button></form>';
+        }
+
+        function renderTaskForms() {
+            if (!AppState.me || !CAN_CREATE_TASK.includes(AppState.me.role)) return;
+            ['quickTaskFormHost:q', 'tasksFormHost:t'].forEach((s) => {
+                const [host, p] = s.split(':');
+                const el = document.getElementById(host);
+                if (!el || el.contains(document.activeElement)) return;
+                el.innerHTML = taskFormHTML(p);
+            });
+        }
+
+        async function doCreateTask(e, p) {
+            e.preventDefault();
+            const g = (s) => document.getElementById(p + s).value;
+            try {
+                await api('POST', '/tasks', { title: g('Title'), description: g('Desc'), assignedTo: Number(g('Assignee')), type: g('Type'), priority: g('Prio') });
+                document.getElementById(p + 'Title').value = ''; document.getElementById(p + 'Desc').value = '';
+                await refreshAll();
+                alert('تم إسناد المهمة');
+            } catch (err) { showErr(err); }
+        }
+
+        function taskActions(t) {
+            const me = AppState.me, b = [];
+            const btn = (label, status, cls) => '<button onclick="taskAction(' + t.id + ',\'' + status + '\')" class="' + cls + ' text-white font-bold px-3 py-1.5 rounded-lg text-[11px]">' + label + '</button>';
+            if (t.assignedTo === me.id && t.status === 'NEW') b.push(btn('بدء التنفيذ', 'IN_PROGRESS', 'bg-amber-600 hover:bg-amber-700'));
+            if (t.assignedTo === me.id && (t.status === 'NEW' || t.status === 'IN_PROGRESS')) b.push(btn('تسجيل الإنجاز', 'DONE', 'bg-emerald-600 hover:bg-emerald-700'));
+            if ((t.createdBy === me.id || me.role === 'DIRECTOR') && (t.status === 'NEW' || t.status === 'IN_PROGRESS')) b.push(btn('إلغاء', 'CANCELLED', 'bg-rose-600 hover:bg-rose-700'));
+            return b.join(' ');
+        }
+
+        async function taskAction(id, status) {
+            let note;
+            if (status === 'DONE') { note = prompt('ملاحظات الإنجاز (اختياري):'); if (note === null) return; }
+            if (status === 'CANCELLED' && !confirm('تأكيد إلغاء المهمة؟')) return;
+            try { await api('PATCH', '/tasks/' + id + '/status', { status, note: note || undefined }); await refreshAll(); } catch (err) { showErr(err); }
+        }
+
+        function renderEmployeeTasks() {
+            const c = document.getElementById('employeeTasksList');
+            if (!c || !AppState.me) return;
+            const mine = AppState.tasks.filter((t) => t.assignedTo === AppState.me.id);
+            c.innerHTML = mine.length ? mine.map((t) => `
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs bg-gov-100 text-gov-800 font-bold px-2.5 py-1 rounded-full">${esc(TYPE_LABEL[t.type])}</span>
+                        <span class="text-xs font-mono text-slate-400">#TASK-${t.id}</span>
+                    </div>
+                    <h3 class="font-bold text-sm text-slate-800">${esc(t.title)}</h3>
+                    ${t.description ? '<p class="text-xs text-slate-600 whitespace-pre-line">' + esc(t.description) + '</p>' : ''}
+                    <div class="flex justify-between items-center text-xs text-slate-500">
+                        <span>الأولوية: <strong>${PRIO_LABEL[t.priority]}</strong> · من: ${esc(t.creatorName)}</span>
+                        <span>الحالة: <strong class="${STATUS_COLOR[t.status]}">${STATUS_LABEL[t.status]}</strong></span>
+                    </div>
+                    ${t.completionNote ? '<p class="text-[11px] text-emerald-700 bg-emerald-50 rounded p-2">ملاحظة الإنجاز: ' + esc(t.completionNote) + '</p>' : ''}
+                    <div class="flex gap-2">${taskActions(t)}</div>
+                </div>`).join('') : '<div class="bg-white p-6 rounded-xl border text-center text-xs text-slate-400">لا توجد مهام مسندة إليك</div>';
+        }
+
+        function renderTasksTable() {
+            const tb = document.getElementById('tasksTableBody');
+            if (!tb) return;
+            tb.innerHTML = AppState.tasks.length ? AppState.tasks.map((t) => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2 font-mono text-slate-400">${t.id}</td>
+                    <td class="p-2"><div class="font-bold text-slate-800">${esc(t.title)}</div><div class="text-[10px] text-slate-400">${esc(TYPE_LABEL[t.type])} · ${fmtTime(t.createdAt)} · من ${esc(t.creatorName)}</div></td>
+                    <td class="p-2">${esc(t.assigneeName)}</td>
+                    <td class="p-2">${PRIO_LABEL[t.priority]}</td>
+                    <td class="p-2 font-bold ${STATUS_COLOR[t.status]}">${STATUS_LABEL[t.status]}</td>
+                    <td class="p-2">${taskActions(t)}</td>
+                </tr>`).join('') : '<tr><td colspan="6" class="p-6 text-center text-slate-400">لا توجد مهام بعد</td></tr>';
+        }
+
+        // ---- المستخدمون (المدير) ----
+        function renderUsersTable() {
+            const sel = document.getElementById('uRole');
+            if (sel && !sel.options.length) sel.innerHTML = Object.entries(ROLE_LABEL).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('');
+            const tb = document.getElementById('usersTableBody');
+            if (!tb || AppState.me.role !== 'DIRECTOR') return;
+            tb.innerHTML = AppState.users.map((u) => `
+                <tr>
+                    <td class="p-2 font-bold">${esc(u.fullName)}</td>
+                    <td class="p-2 font-mono" dir="ltr">${esc(u.username)}</td>
+                    <td class="p-2">${ROLE_LABEL[u.role]}</td>
+                    <td class="p-2 ${u.active ? 'text-emerald-600' : 'text-rose-600'} font-bold">${u.active ? 'فعّال' : 'معطّل'}${u.mustChangePassword ? ' · بانتظار تغيير كلمة المرور' : ''}</td>
+                    <td class="p-2 space-x-reverse space-x-1">
+                        ${u.id === AppState.me.id ? '' : '<button onclick="toggleUser(' + u.id + ',' + (!u.active) + ')" class="bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-[11px] font-bold">' + (u.active ? 'تعطيل' : 'تفعيل') + '</button>'}
+                        <button onclick="resetUserPw(${u.id})" class="bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-[11px] font-bold">إعادة تعيين كلمة المرور</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        async function doCreateUser(e) {
+            e.preventDefault();
+            try {
+                await api('POST', '/users', { fullName: document.getElementById('uFull').value, username: document.getElementById('uName').value, role: document.getElementById('uRole').value, password: document.getElementById('uPass').value });
+                ['uFull', 'uName', 'uPass'].forEach((i) => (document.getElementById(i).value = ''));
+                await refreshAll(); alert('تم إنشاء المستخدم. سلّمه كلمة المرور المؤقتة مباشرة.');
+            } catch (err) { showErr(err); }
+        }
+        async function toggleUser(id, active) {
+            try { await api('PATCH', '/users/' + id, { active }); await refreshAll(); } catch (err) { showErr(err); }
+        }
+        async function resetUserPw(id) {
+            const p = prompt('كلمة مرور مؤقتة جديدة (8 أحرف على الأقل):');
+            if (!p) return;
+            try { await api('PATCH', '/users/' + id, { resetPassword: p }); await refreshAll(); alert('تمت إعادة التعيين. سيُجبر المستخدم على تغييرها.'); } catch (err) { showErr(err); }
+        }
+
+        function refreshTaskMarkers() {
+            if (!mapInstance) return;
+            if (taskLayer) taskLayer.clearLayers(); else taskLayer = L.layerGroup().addTo(mapInstance);
+            AppState.tasks.filter((t) => t.lat != null && t.lng != null).forEach((t) => {
+                const m = L.marker([t.lat, t.lng]);
+                m.bindPopup('<b>مهمة: ' + esc(t.title) + '</b><br>المسؤول: ' + esc(t.assigneeName));
+                taskLayer.addLayer(m);
+            });
+        }
+
+        // INITIALIZATION
+        window.onload = async function() {
+            let t = null; try { t = localStorage.getItem('wd_token'); } catch (e) {}
+            if (!t) return;
+            AppState.token = t;
+            try { AppState.me = (await api('GET', '/auth/me')).user; await enterApp(); } catch (e) { doLogout(); }
+        };
+
+        function switchRole(role) {
+            if (!AppState.me || !ROLE_VIEWS[AppState.me.role].includes(role)) return;
+            AppState.currentRole = role;
+            document.querySelectorAll('.view-panel').forEach(panel => panel.classList.add('hidden'));
+            const activePanel = document.getElementById('view-' + role);
+            if (activePanel) activePanel.classList.remove('hidden');
+            renderNavigation();
+            if (role === 'DIRECTOR' && mapInstance) setTimeout(() => mapInstance.invalidateSize(), 50);
+        }
+
+        function getRoleTitle(role) {
+            const titles = {
+                DIRECTOR: 'مدير المديرية',
+                DEPT_HEAD: 'رئيس قسم الآليات',
+                SECTOR_SUPERVISOR: 'مشرف القطاع الأول',
+                MUNICIPALITY_SUPERVISOR: 'مشرف بلدية المركز',
+                EMPLOYEE: 'مهندس ميداني',
+                DRIVER: 'سائق آلية'
+            };
+            return titles[role] || role;
+        }
+
+        function renderNavigation() {
+            const nav = document.getElementById('navContainer');
+            const all = {
+                DIRECTOR: { icon: 'fa-chart-line', label: 'لوحة المدير (غرفة العمليات)' },
+                TASKS: { icon: 'fa-list-check', label: 'إدارة المهام' },
+                USERS: { icon: 'fa-users-gear', label: 'المستخدمون' },
+                EMPLOYEE: { icon: 'fa-user-check', label: 'مهامي' },
+                DEPT_HEAD: { icon: 'fa-screwdriver-wrench', label: 'قسم الآليات والصيانة (تجريبي)' },
+                SECTOR_SUPERVISOR: { icon: 'fa-map-pin', label: 'إشراف القطاعات (تجريبي)' },
+                MUNICIPALITY_SUPERVISOR: { icon: 'fa-clipboard-list', label: 'التقرير اليومي للبلدية (تجريبي)' },
+                DRIVER: { icon: 'fa-truck-front', label: 'شاشة السائق (تجريبي)' },
+            };
+            const views = AppState.me ? ROLE_VIEWS[AppState.me.role] : [];
+            nav.innerHTML = views.map(v => `
+                <button onclick="switchRole('${v}')" class="w-full text-right px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2.5 ${AppState.currentRole === v ? 'bg-gov-700 text-white shadow' : 'text-slate-600 hover:bg-slate-100'}">
+                    <i class="fa-solid ${all[v].icon} w-4"></i>
+                    <span>${all[v].label}</span>
+                </button>
+            `).join('');
+        }
+
+        function initGISMap() {
+            if (mapInstance) return;
+
+            // Default Map Centered around Operations Area
+            mapInstance = L.map('gisMap').setView([31.953, 35.915], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '© OpenStreetMap'
+            }).addTo(mapInstance);
+
+            refreshTaskMarkers();
+
+            AppState.complaints.forEach(c => {
+                L.circle([c.lat, c.lng], { color: 'red', fillColor: '#f03', fillOpacity: 0.4, radius: 150 }).addTo(mapInstance)
+                    .bindPopup(`<b>شكوى: ${c.title}</b><br>الحالة: ${c.status}`);
+            });
+        }
+
+        function renderAllData() {
+            renderMunicipalityTable();
+            renderComplaints();
+            renderInspections();
+            renderEmployeeTasks();
+            renderAuditLogs();
+        }
+
+        function renderMunicipalityTable() {
+            const tbody = document.getElementById('municipalityTableBody');
+            tbody.innerHTML = AppState.municipalities.map(m => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2.5 font-bold text-slate-800">${m.name}</td>
+                    <td class="p-2.5 text-slate-500">${m.sector}</td>
+                    <td class="p-2.5">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${m.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-800' : (m.status === 'ناقص' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')}">
+                            ${m.status}
+                        </span>
+                    </td>
+                    <td class="p-2.5">${m.level}</td>
+                    <td class="p-2.5 font-mono">${m.workers}</td>
+                    <td class="p-2.5 font-mono">${m.vehicles}</td>
+                    <td class="p-2.5 font-mono">${m.fuel}</td>
+                    <td class="p-2.5 font-mono">${m.complaints}</td>
+                    <td class="p-2.5">
+                        <button onclick="alert('عرض تفاصيل تقرير ${m.name}')" class="text-gov-600 hover:text-gov-800 font-bold text-[11px]">معاينة</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderComplaints() {
+            const container = document.getElementById('complaintsList');
+            container.innerHTML = AppState.complaints.map(c => `
+                <div class="border rounded-xl p-3 bg-slate-50 space-y-3">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded">${c.municipality}</span>
+                            <h4 class="font-bold text-xs text-slate-800 mt-1">${c.title}</h4>
+                        </div>
+                        <span class="text-[10px] px-2 py-0.5 rounded font-bold ${c.status === 'تمت المعالجة' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${c.status}</span>
+                    </div>
+
+                    <!-- Before / After Images Matrix -->
+                    <div class="grid grid-cols-2 gap-2 text-center text-[10px]">
+                        <div>
+                            <span class="block text-slate-500 mb-1 font-semibold">قبل المعالجة</span>
+                            <img src="${c.beforeImg}" class="h-24 w-full object-cover rounded-lg border border-slate-300" alt="قبل">
+                        </div>
+                        <div>
+                            <span class="block text-slate-500 mb-1 font-semibold">بعد المعالجة</span>
+                            ${c.afterImg ? 
+                                `<img src="${c.afterImg}" class="h-24 w-full object-cover rounded-lg border border-emerald-300" alt="بعد">` : 
+                                `<div class="h-24 w-full bg-slate-200 rounded-lg flex items-center justify-center text-slate-400">بانتظار المعالجة</div>`
+                            }
+                        </div>
+                    </div>
+
+                    ${c.status !== 'تمت المعالجة' ? `
+                        <button onclick="resolveComplaint(${c.id})" class="w-full bg-emeraldGov-600 hover:bg-emeraldGov-700 text-white font-bold py-1.5 rounded-lg text-xs transition">
+                            توثيق المعالجة وإرفاق صورة بعد
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderInspections() {
+            const container = document.getElementById('inspectionsList');
+            container.innerHTML = AppState.inspections.map(i => `
+                <div class="p-3 border rounded-xl bg-slate-50 space-y-2">
+                    <div class="flex justify-between font-bold text-slate-800">
+                        <span>الآلية: ${i.vehicleNo} (${i.type})</span>
+                        <span class="text-amber-600 text-[10px]">${i.status}</span>
+                    </div>
+                    <p class="text-slate-600"><strong>العطل:</strong> ${i.fault}</p>
+                    <p class="text-slate-600"><strong>التشخيص:</strong> ${i.diagnosis}</p>
+                    <div class="pt-2 flex justify-end gap-2">
+                        <button onclick="approveRepair(${i.id})" class="bg-gov-800 text-white px-3 py-1 rounded text-[11px] font-bold">اعتماد قرار الإصلاح من المدير</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderAuditLogs() {
+            const tbody = document.getElementById('auditLogTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = AppState.auditLogs.map(a => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-2 text-slate-500">${fmtTime(a.at)}</td>
+                    <td class="p-2 font-bold text-slate-800">${esc(a.username || '-')}</td>
+                    <td class="p-2 text-slate-600">${esc(a.role || '-')}</td>
+                    <td class="p-2 text-gov-700 font-semibold">${esc(a.action)}</td>
+                    <td class="p-2 text-slate-500">${esc(a.record || '')}</td>
+                </tr>
+            `).join('');
+        }
+
+        function handleCreateInspection(e) {
+            e.preventDefault();
+            const vehicleNo = document.getElementById('inspVehicleNo').value;
+            const type = document.getElementById('inspVehicleType').value;
+            const fault = document.getElementById('inspFaultDesc').value;
+            const assigned = document.getElementById('inspAssignedEmp').value;
+
+            const newInsp = {
+                id: AppState.inspections.length + 801,
+                vehicleNo,
+                type,
+                fault,
+                assigned,
+                status: 'مكلف بالكشف',
+                diagnosis: 'قيد الفحص الفني بواسطة الموظف'
+            };
+
+            AppState.inspections.unshift(newInsp);
+            renderInspections();
+            addAuditLog('رئيس قسم الآليات', 'DEPT_HEAD', `أمر كشف فني للآلية ${vehicleNo}`, `Inspection #${newInsp.id}`);
+            alert('تم توجيه أمر الكشف الفني بنجاح');
+        }
+
+        function handleDailyReportSubmit(e) {
+            e.preventDefault();
+            addAuditLog('مشرف بلدية المركز', 'MUNICIPALITY_SUPERVISOR', 'إرسال التقرير اليومي الموحد للنظافة والوقود', 'Daily Report');
+            alert('تم إرسال التقرير اليومي بنجاح إلى مشرف القطاع والمديرية');
+        }
+
+        function handleCreateComplaint(e) {
+            e.preventDefault();
+            const title = document.getElementById('cmpTitle').value;
+            const muni = document.getElementById('cmpMunicipality').value;
+            const img = document.getElementById('cmpImgBefore').value;
+
+            const newCmp = {
+                id: AppState.complaints.length + 501,
+                title,
+                municipality: muni,
+                status: 'جديدة',
+                beforeImg: img,
+                afterImg: null,
+                time: 'الان',
+                lat: 31.956,
+                lng: 35.912
+            };
+
+            AppState.complaints.unshift(newCmp);
+            renderComplaints();
+            toggleModal('newComplaintModal');
+            addAuditLog('مستخدم النظام', 'USER', `تسجيل شكوى ميدانية: ${title}`, `Complaint #${newCmp.id}`);
+        }
+
+        function resolveComplaint(id) {
+            const cmp = AppState.complaints.find(c => c.id === id);
+            if (cmp) {
+                cmp.status = 'تمت المعالجة';
+                cmp.afterImg = 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=400';
+                renderComplaints();
+                addAuditLog('مشرف النظافة', 'SUPERVISOR', `معالجة الشكوى وتوثيق الصورة بعد`, `Complaint #${id}`);
+            }
+        }
+
+        function approveRepair(id) {
+            alert('تم اعتماد قرار الإصلاح وصرف قطع الغيار للورشة من مدير المديرية');
+            addAuditLog('مدير المديرية', 'DIRECTOR', `اعتماد قرار صيانة وإصلاح الآلية`, `Inspection #${id}`);
+        }
+
+        function registerDriverArrival() {
+            document.getElementById('gpsStatusText').classList.remove('hidden');
+            document.getElementById('driverGpsBtn').classList.add('bg-slate-400');
+            addAuditLog('سائق الضاغطة', 'DRIVER', 'توثيق الوصول إلى موقع التفريغ Geofence Lock', 'GPS Location');
+        }
+
+        function generateMonthlyReport() {
+            document.getElementById('reportPreviewArea').classList.remove('hidden');
+            addAuditLog('مدير المديرية', 'DIRECTOR', 'توليد التقرير الشهري الموحد للمديرية', 'Monthly Executive Report');
+        }
+
+        function handleGlobalSearch() {
+            const query = document.getElementById('globalSearchInput').value.toLowerCase();
+            const resContainer = document.getElementById('searchResults');
+
+            if (!query) {
+                resContainer.classList.add('hidden');
+                return;
+            }
+
+            const results = [];
+            AppState.tasks.forEach(t => { if(t.title.toLowerCase().includes(query)) results.push(`مهمة: ${t.title}`); });
+            AppState.complaints.forEach(c => { if(c.title.toLowerCase().includes(query)) results.push(`شكوى: ${c.title}`); });
+
+            if (results.length > 0) {
+                resContainer.innerHTML = results.map(r => `<div class="p-2 border-b hover:bg-slate-50 cursor-pointer text-xs">${r}</div>`).join('');
+                resContainer.classList.remove('hidden');
+            } else {
+                resContainer.innerHTML = `<div class="p-2 text-xs text-slate-400">لا توجد نتائج مطابقة</div>`;
+                resContainer.classList.remove('hidden');
+            }
+        }
+
+        function addAuditLog() { /* السجل الحقيقي يُكتب في الخادم؛ الإجراءات التجريبية لا تُسجَّل */ }
+
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            if (modal) modal.classList.toggle('hidden');
+        }
+
+        function exportToExcel(tableName) {
+            alert('تم تصدير الجدول إلى ملف Excel بنجاح.');
+        }
+    </script>
+</body>
+</html>

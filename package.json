@@ -1,0 +1,21 @@
+{
+  "name": "waste-directorate-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "منصة إدارة ومتابعة مديرية النظافة",
+  "scripts": {
+    "build:web": "node scripts/build-web.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@fontsource/cairo": "^5.1.0",
+    "@fortawesome/fontawesome-free": "^6.4.0",
+    "chart.js": "^4.4.0",
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}
